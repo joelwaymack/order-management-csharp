@@ -183,17 +183,16 @@ The Order API will be created using Azure Functions to expose a set of endpoints
     1. Create a new folder named **order-management-func**
     1. Select the Azure Extension in VS Code
     1. In the Functions section, select **Create new project...** (Folder with lightning bolt button)
-        * Folder: /workspaces/order-management-java/order-management-func/
-        * Language: Java
-        * Version: Java 11
-        * Group Id: com.function
-        * Artifact Id: order-management-func
-        * Version: 1.0-SNAPSHOT
-        * Package Name: com.function
-        * App Name: order-management-[uniquename]-func
+        * Folder: /workspaces/order-management-csharp/order-management-func/
+        * Language: C#
+        * Runtime: .NET 6
+        * Template: HTTP Trigger
+        * Function Name: NameEcho
+        * Namespace: Company.Function
+        * Access Rights: Anonymous
     1. Select **F5** to have VS Code start the Function App
     1. Select **Open in Browser** when the port forwarding notification pops up
-    1. Navigate to **/api/HttpExample** to see the response of the auto-generated function
+    1. Navigate to **/api/NameEcho** to see the response of the auto-generated function
 1. Organize the Function App and add connection information
     1. Navigate to the **order-management-func/src/local.settings.json** file and add/update the following
 
@@ -202,7 +201,7 @@ The Order API will be created using Azure Functions to expose a set of endpoints
           "IsEncrypted": false,
           "Values": {
             "AzureWebJobsStorage": "[storage-account-connection-string]",
-            "FUNCTIONS_WORKER_RUNTIME": "java",
+            "FUNCTIONS_WORKER_RUNTIME": "dotnet",
             "CosmosConnectionString": "[cosmos-connection-string]",
             "DatabaseName": "OrderManagement",
             "Collection": "Orders"
@@ -210,27 +209,26 @@ The Order API will be created using Azure Functions to expose a set of endpoints
         }
         ```
 
-    1. Create a **order-management-func/src/main/java/com/function/models** folder
-    1. Add a new file named **Order.java** to the models folder
-        * NOTE: For brevity, getters and setters are not being used
+    1. Create a **order-management-func/Models** folder
+    1. Add a new file named **Order.cs** to the models folder
 
-        ```java
-        package com.function.models;
-    
-        import java.time.LocalDateTime;
-        import java.util.UUID;
-        
-        public class Order {
-            public UUID id;
-            public UUID customerId;
-            public String itemName;
-            public int quantity;
-            public double unitPrice;
-            public Double tax;
-            public Double total;
-            public String createdTimestamp;
-            public String paymentTimestamp;
-            public String shippedTimestamp;
+        ```csharp
+        using System;
+
+        namespace Company.Function.Models;
+
+        public class Order
+        {
+            public Guid Id { get; set; }
+            public Guid CustomerId { get; set;}
+            public string ItemName { get; set; }
+            public int Quantity { get; set; }
+            public decimal UnitPrice { get; set; }
+            public decimal Tax { get; set; }
+            public decimal Total { get; set; }
+            public DateTime CreatedTimestamp { get; set; }
+            public DateTime PaymentTimestamp { get; set; }
+            public DateTime ShippedTimestamp { get; set; }
         }
         ```
 
