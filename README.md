@@ -214,107 +214,126 @@ The Order API will be created using Azure Functions to expose a set of endpoints
 
         ```csharp
         using System;
+        using Newtonsoft.Json;
 
         namespace Company.Function.Models;
 
         public class Order
         {
+            [JsonProperty("id")]
             public Guid Id { get; set; }
+
+            [JsonProperty("customerId")]
             public Guid CustomerId { get; set;}
+
+            [JsonProperty("itemName")]
             public string ItemName { get; set; }
+
+            [JsonProperty("quantity")]
             public int Quantity { get; set; }
+
+            [JsonProperty("unitPrice")]
             public decimal UnitPrice { get; set; }
-            public decimal Tax { get; set; }
-            public decimal Total { get; set; }
-            public DateTime CreatedTimestamp { get; set; }
-            public DateTime PaymentTimestamp { get; set; }
-            public DateTime ShippedTimestamp { get; set; }
+
+            [JsonProperty("tax")]
+            public decimal? Tax { get; set; }
+
+            [JsonProperty("total")]
+            public decimal? Total { get; set; }
+
+            [JsonProperty("createdTimestamp")]
+            public DateTime? CreatedTimestamp { get; set; }
+
+            [JsonProperty("paymentTimestamp")]
+            public DateTime? PaymentTimestamp { get; set; }
+
+            [JsonProperty("shippedTimestamp")]
+            public DateTime? ShippedTimestamp { get; set; }
         }
         ```
 
 1. Create the Order Endpoints
     * NOTE: You can test your API endpoints using the **assets/function.rest** file
-    1. Create a **order-management-func/src/main/java/com/function/handlers** folder
-    1. Move the **Function.java** file into the handlers folder
-    1. Rename **Function.java** to **OrderHandler.java**
-    1. Remove the **HttpExample** Function
-    1. Add an HTTP Function Trigger for **GetAllOrders** to handle a **GET /api/orders** request
+    1. Add the Cosmos Binding package to the project.
+      1. Navigate in the terminal to the **order-management-func** folder
+      2. Run the following command
+         
+         ```bash
+         cd /workspaces/order-management-csharp/order-management-func
+         dotnet add package Microsoft.Azure.WebJobs.Extensions.CosmosDB
+         ```
 
-        ```java
-        @FunctionName("GetAllOrders")
-        public HttpResponseMessage getAllOrders(
-            @HttpTrigger(
-                name = "req",
-                methods = {HttpMethod.GET},
-                route = "orders",
-                authLevel = AuthorizationLevel.ANONYMOUS)
-                HttpRequestMessage<Optional<String>> request,
-            @CosmosDBInput(
-                name = "orders",
-                databaseName = "%DatabaseName%",
-                collectionName = "%CollectionName%",
-                connectionStringSetting = "CosmosConnectionString",
-                sqlQuery = "SELECT * FROM orders")
-                List<Order> orders,
-            final ExecutionContext context) {
-    
-            return request.createResponseBuilder(HttpStatus.OK).body(orders).build();
+    3. Create a **order-management-func/Handlers** folder
+    4. Move the **NameEcho.cs** file into the handlers folder
+    5. Rename **NameEcho.cs** to **OrderHandler.cs**
+    6. Update the namespace to **Company.Function.Handlers** and the class to **OrderHandler**
+    7. Remove the **NameEcho** Function
+    8. Add an HTTP Function Trigger for **GetAllOrders** to handle a **GET /api/orders** request
+
+        ```csharp
+        [FunctionName("GetAllOrders")]
+        public static IActionResult GetAllOrders(
+            [HttpTrigger(
+                AuthorizationLevel.Anonymous,
+                "get",
+                Route = "orders")] HttpRequest req,
+            [CosmosDB(
+                "%DatabaseName%",
+                "%CollectionName%",
+                ConnectionStringSetting = "CosmosConnectionString",
+                SqlQuery = "SELECT * FROM orders")] IEnumerable<Order> orders,
+            ILogger log)
+        {
+            return new OkObjectResult(orders);
         }
         ```
 
     1. Add an HTTP Function Trigger for **CreateOrder** to handle a **POST /api/customers/{customerId}/orders** request
 
-        ```java
-        @FunctionName("CreateOrder")
-        public HttpResponseMessage createOrder(
-            @HttpTrigger(
-                name = "req",
-                methods = {HttpMethod.POST},
-                route = "customers/{customerId}/orders",
-                authLevel = AuthorizationLevel.ANONYMOUS)
-                HttpRequestMessage<Order> request,
-            @BindingName("customerId") UUID customerId,
-            @CosmosDBOutput(
-                name = "orders",
-                databaseName = "%DatabaseName%",
-                collectionName = "%CollectionName%",
-                connectionStringSetting = "CosmosConnectionString")
-                OutputBinding<Order> orderOutput,
-            final ExecutionContext context) {
-    
-            context.getLogger().info("New order created for customer " + customerId);
-            final Order order = request.getBody();
-            order.customerId = customerId;
-            order.id = UUID.randomUUID();
-            order.createdTimestamp = Instant.now().toString();
-    
-            orderOutput.setValue(order);
-    
-            return request.createResponseBuilder(HttpStatus.OK).body(order).build();
+        ```csharp
+        [FunctionName("CreateOrder")]
+        public static async Task<IActionResult> CreateOrderAsync(
+            [HttpTrigger(
+                AuthorizationLevel.Anonymous,
+                "post",
+                Route = "customers/{customerId}/orders")] HttpRequest req,
+            Guid customerId,
+            [CosmosDB(
+                "%DatabaseName%",
+                "%CollectionName%",
+                ConnectionStringSetting = "CosmosConnectionString")] IAsyncCollector<Order> orders,
+            ILogger log)
+        {
+            log.LogInformation($"New order created for customer {customerId}");
+
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            var order = JsonConvert.DeserializeObject<Order>(requestBody);
+            order.CustomerId = customerId;
+            order.Id = Guid.NewGuid();
+            order.CreatedTimestamp = DateTime.Now;
+            await orders.AddAsync(order);
+            
+            return new CreatedResult($"/api/orders/{order.Id}", order);
         }
         ```
 
     1. Add an HTTP Function Trigger for **GetCustomerOrders** to handle a **GET /api/customers/{customerId}/orders** request
 
-        ```java
-        @FunctionName("GetCustomerOrders")
-        public HttpResponseMessage getCustomerOrders(
-            @HttpTrigger(
-                name = "req",
-                methods = {HttpMethod.GET},
-                route = "customers/{customerId}/orders",
-                authLevel = AuthorizationLevel.ANONYMOUS)
-                HttpRequestMessage<Optional<String>> request,
-            @CosmosDBInput(
-                name = "orders",
-                databaseName = "%DatabaseName%",
-                collectionName = "%CollectionName%",
-                connectionStringSetting = "CosmosConnectionString",
-                sqlQuery = "SELECT * FROM orders where orders.customerId = {customerId}")
-                List<Order> orders,
-            final ExecutionContext context) {
-    
-            return request.createResponseBuilder(HttpStatus.OK).body(orders).build();
+        ```csharp
+        [FunctionName("GetCustomerOrders")]
+        public static IActionResult GetCustomerOrders(
+            [HttpTrigger(
+                AuthorizationLevel.Anonymous,
+                "get",
+                Route = "customers/{customerId}/orders")] HttpRequest req,
+            [CosmosDB(
+                "%DatabaseName%",
+                "%CollectionName%",
+                ConnectionStringSetting = "CosmosConnectionString",
+                SqlQuery = "SELECT * FROM orders where orders.customerId = {customerId}")] IEnumerable<Order> orders,
+            ILogger log)
+        {
+            return new OkObjectResult(orders);
         }
         ```
 
@@ -322,8 +341,8 @@ The Order API will be created using Azure Functions to expose a set of endpoints
     1. Right click on the **order-management-func** folder and select **Deploy to Function App...**
     1. When it completes select the **Upload settings** button to sync your local settings to the Function App's Application Settings
 1. Access the Order API through the Order Management App
-    1. Navigate to the Order Management App (<https://[storageaccountname>].z13.web.core.windows.net)
-    1. In the settings, add in the base URL for the Function App (<https://order-management-[uniquename>]-func.azurewebsites.net)
+    1. Navigate to the Order Management App (https://[storageaccountname].z13.web.core.windows.net)
+    1. In the settings, add in the base URL for the Function App (https://order-management-[uniquename]-func.azurewebsites.net)
     1. The navigate to the Customer section after it appears
     1. Troubleshoot calls to the Customer APi
         1. Open up the developer tools in your browser (F12) to troubleshoot the problem
